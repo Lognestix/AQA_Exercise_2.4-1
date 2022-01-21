@@ -1,4 +1,4 @@
-## `Статус сборки` [![Build status](https://ci.appveyor.com/api/projects/status/rdegan0naj2f4tje?svg=true)](https://ci.appveyor.com/project/Lognestix/aqa-exercise-2-3-2)
+## `Статус сборки` [![Build status](https://ci.appveyor.com/api/projects/status/9ypd2a315qyhsrjq?svg=true)](https://ci.appveyor.com/project/Lognestix/aqa-exercise-2-4-1)
 ## В build.gradle добавленна поддержка JUnit-Jupiter, Selenide и headless-режим, Lombok.
 ```gradle
 plugins {
