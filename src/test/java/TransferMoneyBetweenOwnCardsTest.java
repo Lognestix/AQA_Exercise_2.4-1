@@ -7,10 +7,6 @@ import static com.codeborne.selenide.Selenide.open;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TransferMoneyBetweenOwnCardsTest {
-  String firstIdCard = "92df3f1c-a033-48e6-8390-206f6b1f56c0";
-  String secondIdCard = "0f3f5c2a-249e-4c3d-8287-09f7a039391d";
-  String firstNumberCard = "5559 0000 0000 0001";
-  String secondNumberCard = "5559 0000 0000 0002";
 
   @BeforeAll
   public static void loginToPersonalAccount() {
@@ -20,87 +16,126 @@ class TransferMoneyBetweenOwnCardsTest {
     var loginPage = new LoginPage();
     var authInfo = DataHelper.getUserAuthInfo();
     var verificationPage = loginPage.validLogin(authInfo);
-    var verificationCode = DataHelper.getVerificationCodeFor(authInfo);
+    var verificationCode = DataHelper.getVerificationCodeFor();
     verificationPage.validVerify(verificationCode);
+  }
+
+  @AfterEach
+  public void cardBalancing() {
+    //Получение баланса по обеим картам:
+    var dashboardPage = new DashboardPage();
+    var firstCardId = DataHelper.getFirstCardId();
+    var balanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var secondCardId = DataHelper.getSecondCardId();
+    var balanceSecondCard = dashboardPage.getCardBalance(secondCardId);
+    //Определение на какую карту и сколко переводить для выравнивания баланса:
+    int amountTransfer;
+    if (balanceFirstCard > balanceSecondCard) {
+      amountTransfer = (balanceFirstCard - balanceSecondCard) / 2;
+      var replenishmentPage = dashboardPage.transfer(secondCardId);
+      var transferInfo = DataHelper.setSecondCardTransferInfo(amountTransfer);
+      //Осуществление перевода денег:
+      replenishmentPage.transferBetweenOwnCards(transferInfo);
+    }
+    if (balanceFirstCard < balanceSecondCard) {
+      amountTransfer = (balanceSecondCard - balanceFirstCard) / 2;
+      var replenishmentPage = dashboardPage.transfer(firstCardId);
+      var transferInfo = DataHelper.setFirstCardTransferInfo(amountTransfer);
+      //Осуществление перевода денег:
+      replenishmentPage.transferBetweenOwnCards(transferInfo);
+    }
   }
 
           //Позитивные проверки:
   @Test   //Перевод со второй карты на первую
   @DisplayName("Transfer money from the second card to the first card")
   public void shouldTransferFromSecondToFirst() {
-    int initialBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int initialBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
-    int amountTransfer = 7_401;
-    DashboardPage.transferBetweenOwnCards(firstIdCard, secondNumberCard, amountTransfer);
-    int finalBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int finalBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
+    //Получение баланса по обеим картам и подготовка данных для перевода денег:
+    var dashboardPage = new DashboardPage();
+    var firstCardId = DataHelper.getFirstCardId();
+    var initialBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var secondCardId = DataHelper.getSecondCardId();
+    var initialBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
+    var replenishmentPage = dashboardPage.transfer(firstCardId);
+    var transferInfo = DataHelper.getFirstCardTransferInfoPositive();
+    //Осуществление перевода денег:
+    replenishmentPage.transferBetweenOwnCards(transferInfo);
+    //Получение итогового баланса по обеим картам:
+    var finalBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var finalBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
     //Проверка зачисления на первую карту:
-    assertEquals(initialBalanceFirstCard + amountTransfer, finalBalanceFirstCard);
+    assertEquals(transferInfo.getAmount(), finalBalanceFirstCard - initialBalanceFirstCard);
     //Проверка списания со второй карты:
-    assertEquals(initialBalanceSecondCard - amountTransfer, finalBalanceSecondCard);
+    assertEquals(transferInfo.getAmount(), initialBalanceSecondCard - finalBalanceSecondCard);
   }
 
   @Test   //Перевод с первой карты на вторую
   @DisplayName("Transfer money from the first card to the second card")
   public void shouldTransferFromFirstToSecond() {
-    int initialBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int initialBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
-    int amountTransfer = 4_068;
-    DashboardPage.transferBetweenOwnCards(secondIdCard, firstNumberCard, amountTransfer);
-    int finalBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int finalBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
+    var dashboardPage = new DashboardPage();
+    var firstCardId = DataHelper.getFirstCardId();
+    var initialBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var secondCardId = DataHelper.getSecondCardId();
+    var initialBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
+    var replenishmentPage = dashboardPage.transfer(secondCardId);
+    var transferInfo = DataHelper.getSecondCardTransferInfoPositive();
+    //Осуществление перевода денег:
+    replenishmentPage.transferBetweenOwnCards(transferInfo);
+    //Получение итогового баланса по обеим картам:
+    var finalBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var finalBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
     //Проверка списания с первой карты:
-    assertEquals(initialBalanceFirstCard - amountTransfer, finalBalanceFirstCard);
+    assertEquals(transferInfo.getAmount(), initialBalanceFirstCard - finalBalanceFirstCard);
     //Проверка зачисления на вторую карту:
-    assertEquals(initialBalanceSecondCard + amountTransfer, finalBalanceSecondCard);
+    assertEquals(transferInfo.getAmount(), finalBalanceSecondCard - initialBalanceSecondCard);
   }
 
           //Негативные проверки:
   @Test   //Попытка перевода со второй карты на первую с отрицательной суммой перевода
   @DisplayName("Transferring money from the second card to the first card with a negative amount")
   public void shouldTransferFromSecondToFirstNegativeAmount() {
-    int initialBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int initialBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
-    int amountTransfer = -906;
-    DashboardPage.transferBetweenOwnCards(firstIdCard, secondNumberCard, amountTransfer);
-    int finalBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int finalBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
-    //Проверка зачисления на первую карту, т.к. минус не введется:
-    assertEquals(initialBalanceFirstCard - amountTransfer, finalBalanceFirstCard);
-    //Проверка списания со второй карты, т.к. минус не введется:
-    assertEquals(initialBalanceSecondCard + amountTransfer, finalBalanceSecondCard);
+    //Получение баланса по обеим картам и подготовка данных для перевода денег:
+    var dashboardPage = new DashboardPage();
+    var firstCardId = DataHelper.getFirstCardId();
+    var initialBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var secondCardId = DataHelper.getSecondCardId();
+    var initialBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
+    var replenishmentPage = dashboardPage.transfer(firstCardId);
+    var transferInfo = DataHelper.getFirstCardTransferInfoNegative();
+    //Т.к. минус при вводе суммы игнорируется будет обычный перевод
+    //Осуществление перевода денег:
+    replenishmentPage.transferBetweenOwnCards(transferInfo);
+    //Получение итогового баланса по обеим картам:
+    var finalBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var finalBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
+    //Проверка зачисления на первую карту:
+    assertEquals( - transferInfo.getAmount(), finalBalanceFirstCard - initialBalanceFirstCard);
+    //Проверка списания со второй карты:
+    assertEquals( - transferInfo.getAmount(), initialBalanceSecondCard - finalBalanceSecondCard);
   }
 
   @Test   //Попытка перевода с первой карты на вторую с суммой перевода превышающей баланс первой карты
   @DisplayName("Transfer money from the first card to the second " +
           "with the transfer amount exceeding the balance of the first card")
   public void shouldTransferFromFirstToSecondNegativeAmount() {
-    int initialBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int initialBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
-    int amountTransfer = initialBalanceFirstCard + initialBalanceSecondCard + 1;
-    DashboardPage.transferBetweenOwnCards(secondIdCard, firstNumberCard, amountTransfer);
-    int finalBalanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int finalBalanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
-    //Проверка зачисления на вторую карту суммы превышающей баланс первой карты:
-    assertNotEquals(finalBalanceSecondCard, amountTransfer + initialBalanceSecondCard,
-            "Осуществлен перевод превышающий баланс карты, с которой осуществляется перевод");
-    //Проверка списания с первой карты суммы превышающей ее баланс:
-    assertNotEquals(initialBalanceFirstCard, finalBalanceFirstCard,
-            "Осуществлено списание суммы, при осуществлении перевода превышающего баланс карты");
-  }
-
-  @AfterEach
-  public void cardBalancing() {
-    int balanceFirstCard = DashboardPage.getCardBalance(firstIdCard);
-    int balanceSecondCard = DashboardPage.getCardBalance(secondIdCard);
-    int amountTransfer;
-    if (balanceFirstCard > balanceSecondCard) {
-      amountTransfer = (balanceFirstCard - balanceSecondCard) / 2;
-      DashboardPage.transferBetweenOwnCards(secondIdCard, firstNumberCard, amountTransfer);
-    }
-    if (balanceFirstCard < balanceSecondCard) {
-      amountTransfer = (balanceSecondCard - balanceFirstCard) / 2;
-      DashboardPage.transferBetweenOwnCards(firstIdCard, secondNumberCard, amountTransfer);
-    }
+    //Получение баланса по обеим картам и подготовка данных для перевода денег:
+    var dashboardPage = new DashboardPage();
+    var firstCardId = DataHelper.getFirstCardId();
+    var initialBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var secondCardId = DataHelper.getSecondCardId();
+    var initialBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
+    var replenishmentPage = dashboardPage.transfer(secondCardId);
+    var transferInfo = DataHelper.getSecondCardTransferInfoNegative();
+    //Попытка осуществление перевода денег:
+    replenishmentPage.transferBetweenOwnCards(transferInfo);
+    //Получение итогового баланса по обеим картам:
+    var finalBalanceFirstCard = dashboardPage.getCardBalance(firstCardId);
+    var finalBalanceSecondCard = dashboardPage.getCardBalance(secondCardId);
+    //Проверка на изменение баланса первой карты:
+    assertEquals(initialBalanceFirstCard, finalBalanceFirstCard,
+            "Изменился баланс первой карты");
+    //Проверка на изменение баланса второй карты:
+    assertEquals(initialBalanceSecondCard, finalBalanceSecondCard,
+            "Изменился баланс второй карты");
   }
 }
